@@ -3,7 +3,9 @@ Group0/ Hank
 - Calculate sector betas
 - Calculate residual sector etf returns
 
-Group1/
+Group1/ Joseph Ruocco, Niharika Madana, Hunter Allen, Samson Lam
+- Stock factor regressions using stagger_1
+- Code and results in group1/
 
 Group2/
 
