@@ -1,5 +1,7 @@
 # Group 1 stock factor regressions
 
+Group members: Joseph Ruocco, Niharika Madana, Hunter Allen, Samson Lam.
+
 Run from the repository root:
 
 ```bash
