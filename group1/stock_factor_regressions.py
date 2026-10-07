@@ -32,6 +32,7 @@ def run():
     companies = pd.read_excel(source, sheet_name='Companies')
     companies = companies.dropna(subset=['sector', 'currency']).drop_duplicates('ticker')
     records, diagnostics, selection, residual_tables, exposures = [], [], [], {}, []
+    residual_progress = []
     # Excel row 255 starts weighted returns; row 339 starts sector residuals.
     returns = pd.read_excel(source, sheet_name=stagger, skiprows=254, nrows=80)
     sectors = pd.read_excel(source, sheet_name=stagger, skiprows=338, nrows=80)
@@ -53,6 +54,14 @@ def run():
         y = data[ticker].copy()
         original = y.copy()
         contribution = pd.Series(0.0, index=y.index)
+        def record_residual_stage(stage, retained):
+            residual_progress.append(dict(
+                stagger=stagger, ticker=ticker, stage=stage, retained=retained,
+                observations=len(y), residual_std=float(y.std(ddof=1))))
+
+        record_residual_stage('Original', False)
+        if not foreign:
+            record_residual_stage('Home FX', False)
         exposure = {'stagger': stagger, 'ticker': ticker,
                     **{f'beta_{f}': 0.0 for f in ['MXN/USD','SGD/USD','CAD/USD','DKK/USD','EUR/USD','AUD/USD','SPY', *SECTORS.values()]}}
     
@@ -84,6 +93,8 @@ def run():
                 alpha_total = alpha_total + model.params['const']
                 factor_name = factor.replace('_residual', '')
                 exposure['beta_' + factor_name] = beta
+            stage_name = {1: 'Home FX', 2: 'AUD', 3: 'AUD', 4: 'SPY', 5: 'Primary sector'}[step]
+            record_residual_stage(stage_name, keep)
 
         # Forward selection on the stage-5 response, jointly refitting the
         # selected additional sectors at each iteration. All retained
@@ -120,6 +131,7 @@ def run():
                     retained=True, applied_beta=model.params[factor],
                     observations=int(model.nobs), r_squared=model.rsquared))
                 exposure[f'beta_{factor.removesuffix("_residual")}'] = model.params[factor]
+        record_residual_stage('Additional sectors', bool(selected))
         error = float((original - contribution - y).abs().max())
         if error > 1e-10:
             raise AssertionError('Return reconstruction failed')
@@ -134,7 +146,8 @@ def run():
     residual_tables[stagger] = residual_table
     output.mkdir(parents=True, exist_ok=True)
     tables = {'stage_coefficients': pd.DataFrame(records), 'factor_exposures': pd.DataFrame(exposures),
-              'diagnostics': pd.DataFrame(diagnostics), 'selection_log': pd.DataFrame(selection)}
+              'diagnostics': pd.DataFrame(diagnostics), 'selection_log': pd.DataFrame(selection),
+              'residual_progress': pd.DataFrame(residual_progress)}
     with pd.ExcelWriter(output / 'stock_factor_results.xlsx', engine='openpyxl') as writer:
         for name, table in tables.items():
             table.to_excel(writer, sheet_name=name, index=False)

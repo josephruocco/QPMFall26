@@ -22,6 +22,10 @@ The source is `data/companies_and_staggered_returns.xlsx`. Group 1 uses `stagger
 
 `results/stock_factor_results.xlsx` contains stage coefficients, a wide factor-exposure table, diagnostics, the candidate-selection log, and the Group 1 final residual table. The same tables are saved as CSV files. Tested coefficients and applied coefficients are separate fields, so rejected AUD estimates remain inspectable. Factor exposures use sector residual returns rather than raw sector ETF returns; an omitted additional sector has zero exposure.
 
+The `residual_progress` table records sample residual standard deviation on each stock's fixed complete-case sample at six checkpoints: original returns, home FX, AUD, SPY, primary sector, and the final additional-sector fit. Skipped stages repeat the previous value. These are class-weighted four-week return units, not annualized volatility.
+
+Restart the kernel and run all cells in `Stock_Factor_Regressions.ipynb` to follow the six classroom steps with coefficient tables and before/after variation charts. The residual-progress section checks for increases beyond numerical tolerance and reports any exceptions. Overall diagnostics include exposure heatmaps, ranked SPY betas, AUD selection t-statistics, and final residual variation and correlations. Decreasing in-sample residual variation is expected from the retained OLS stages; it does not establish out-of-sample performance.
+
 The pipeline uses a common complete-case sample within each stock model. Missing pre-listing prices are never filled. All regressions include an intercept; retained stages subtract both alpha and beta times the factor. Each modeled return is checked against the sum of its retained fitted components and final residual to a tolerance of 1e-10.
 
 ## Assumptions
