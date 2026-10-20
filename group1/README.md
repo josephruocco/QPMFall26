@@ -2,7 +2,7 @@
 
 Group members: Joseph Ruocco, Niharika Madana, Hunter Allen, Samson Lam.
 
-The analysis uses **stagger_1** and the corrected upstream data. Open `results/stock_factor_results.xlsx` for the complete formatted workbook, or run `Stock_Factor_Regressions.ipynb` to walk through the calculations and plots.
+The analysis uses **stagger_1** and the corrected upstream data. Open `results/group1_stock_factor_results.xlsx` for the complete formatted workbook, or run `Stock_Factor_Regressions.ipynb` to walk through the calculations and plots.
 
 ```bash
 python -m pip install -r group1/requirements.txt
