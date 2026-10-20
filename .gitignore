@@ -2,3 +2,29 @@
 .vscode
 .DS_Store
 data/.DS_Store
+
+# Python and notebook caches
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local credentials and environment files
+.env
+.env.*
+!.env.example
+.aws/
+*.pem
+*.key
+credentials.json
+client_secret*.json
+
+# Local tooling, previews, and temporary exports
+.agents/
+.codex/
+node_modules/
+outputs/
+~$*
+*.tmp
