@@ -15,6 +15,21 @@ SECTORS = {
 STAGES = ['Original', 'Home FX', 'Other FX', 'SPY', 'Primary sector', 'Other sectors']
 
 
+def cumulative_r_squared(original, response):
+    """Explained variation against the original, intercept-only baseline.
+
+    Centering gives zero at the original/skipped pre-fit stages. Once an
+    intercept is fitted, the response is already a zero-mean residual.
+    """
+    if not original.index.equals(response.index):
+        raise ValueError('Cumulative R-squared requires the same observations')
+    sst = float(((original - original.mean()) ** 2).sum())
+    if sst <= 0:
+        raise ValueError('Cumulative R-squared is undefined for constant returns')
+    remaining = float(((response - response.mean()) ** 2).sum())
+    return 1 - remaining / sst
+
+
 def fit(y, x):
     design = sm.add_constant(x, has_constant='add')
     if np.linalg.matrix_rank(design.to_numpy()) != design.shape[1]:
@@ -80,8 +95,12 @@ def run(output_dir=None):
 
         def checkpoint(stage):
             stage_returns[stage][ticker] = y
+            cumulative_r2 = cumulative_r_squared(original, y)
             progress.append(dict(stagger=stagger, ticker=ticker, stage=stage,
-                                 observations=len(y), residual_std=float(y.std(ddof=1))))
+                                 observations=len(y), residual_std=float(y.std(ddof=1)),
+                                 cumulative_r_squared=cumulative_r2))
+            if stage != 'Original':
+                exposure[f"cumulative_r2_{stage.lower().replace(' ', '_')}"] = cumulative_r2
 
         def apply(model, selected, stage):
             nonlocal y, contribution, alpha_total

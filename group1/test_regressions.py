@@ -2,7 +2,7 @@
 import unittest
 import numpy as np
 import pandas as pd
-from stock_factor_regressions import backward_select, fit
+from stock_factor_regressions import backward_select, fit, cumulative_r_squared
 
 
 class BackwardSelectionTests(unittest.TestCase):
@@ -47,6 +47,21 @@ class BackwardSelectionTests(unittest.TestCase):
         x['duplicate'] = x['negative']
         with self.assertRaisesRegex(ValueError, 'Rank-deficient'):
             backward_select(pd.Series(self.q[:, 4]), x)
+
+    def test_cumulative_r_squared_uses_original_baseline(self):
+        original = pd.Series(2 + 4*self.q[:, 0] + 3*self.q[:, 1] + self.q[:, 3])
+        first = fit(original, self.x[['negative']])
+        second = fit(first.resid, self.x[['positive']])
+        self.assertEqual(cumulative_r_squared(original, original), 0)
+        self.assertAlmostEqual(cumulative_r_squared(original, first.resid), first.rsquared)
+        cumulative = cumulative_r_squared(original, second.resid)
+        self.assertAlmostEqual(cumulative, 1 - (1-first.rsquared)*(1-second.rsquared))
+        self.assertNotAlmostEqual(cumulative, first.rsquared + second.rsquared)
+        self.assertAlmostEqual(cumulative_r_squared(original, original+100), 0)
+        with self.assertRaisesRegex(ValueError, 'same observations'):
+            cumulative_r_squared(original, second.resid.iloc[1:])
+        with self.assertRaisesRegex(ValueError, 'constant'):
+            cumulative_r_squared(pd.Series([1.,1.,1.]), pd.Series([0.,0.,0.]))
 
 
 if __name__ == '__main__':
