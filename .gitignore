@@ -22,9 +22,8 @@ credentials.json
 client_secret*.json
 
 # Local tooling, previews, and temporary exports
-.agents/
-.codex/
 node_modules/
 outputs/
 ~$*
 *.tmp
+*.inspect.ndjson
