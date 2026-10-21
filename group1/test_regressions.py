@@ -2,7 +2,8 @@
 import unittest
 import numpy as np
 import pandas as pd
-from stock_factor_regressions import backward_select, fit, cumulative_r_squared
+from stock_factor_regressions import (backward_select, fit, cumulative_r_squared,
+                                     forward_residual_select, secondary_currencies)
 
 
 class BackwardSelectionTests(unittest.TestCase):
@@ -47,6 +48,42 @@ class BackwardSelectionTests(unittest.TestCase):
         x['duplicate'] = x['negative']
         with self.assertRaisesRegex(ValueError, 'Rank-deficient'):
             backward_select(pd.Series(self.q[:, 4]), x)
+
+    def test_forward_selection_updates_residuals_and_keeps_negative_beta(self):
+        y = pd.Series(2 - 4*self.q[:, 0] + 3*self.q[:, 1] + 0.1*self.q[:, 3])
+        retained, log = forward_residual_select(y, self.x)
+        self.assertEqual([f for f, _ in retained], ['negative', 'positive'])
+        response = y.copy()
+        contribution = pd.Series(0., index=y.index)
+        for iteration, (factor, model) in enumerate(retained, 1):
+            np.testing.assert_allclose(model.model.endog, response)
+            candidates = [r for r in log if r['iteration'] == iteration]
+            accepted = [r for r in candidates if r['retained']]
+            self.assertEqual(len(accepted), 1)
+            self.assertEqual(accepted[0]['factor'], factor)
+            self.assertEqual(abs(accepted[0]['t_stat']), max(abs(r['t_stat']) for r in candidates))
+            self.assertGreater(abs(accepted[0]['t_stat']), 2)
+            self.assertLessEqual(model.resid.var(), response.var())
+            contribution += model.fittedvalues
+            response = model.resid
+        np.testing.assert_allclose(contribution + response, y, atol=1e-12)
+        self.assertFalse(log[-1]['retained'])
+
+    def test_forward_selection_rejects_noise_and_exact_threshold(self):
+        y = pd.Series(1 + self.q[:, 4])
+        retained, log = forward_residual_select(y, self.x)
+        self.assertEqual(retained, [])
+        self.assertTrue(all(not r['retained'] for r in log))
+        y = pd.Series(self.q[:, 0] + self.q[:, 3])
+        x = self.x[['negative']]
+        threshold = abs(fit(y, x).tvalues['negative'])
+        self.assertEqual(forward_residual_select(y, x, threshold)[0], [])
+        self.assertEqual(forward_residual_select(y, x.iloc[:, :0]), ([], []))
+
+    def test_secondary_currency_is_only_aud(self):
+        for home in [None, 'MXN/USD', 'SGD/USD', 'CAD/USD', 'EUR/USD', 'DKK/USD']:
+            self.assertEqual(secondary_currencies(home), ['AUD/USD'])
+        self.assertEqual(secondary_currencies('AUD/USD'), [])
 
     def test_cumulative_r_squared_uses_original_baseline(self):
         original = pd.Series(2 + 4*self.q[:, 0] + 3*self.q[:, 1] + self.q[:, 3])

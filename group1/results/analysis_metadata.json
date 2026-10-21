@@ -1,5 +1,5 @@
 {
-  "method": "Home FX, backward FX selection, SPY, primary sector, backward sector selection",
+  "method": "Home FX, AUD-only secondary FX, SPY, primary sector, forward residual sector selection",
   "stagger": "stagger_1",
   "stocks": 43,
   "factors": [

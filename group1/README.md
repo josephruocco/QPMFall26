@@ -15,13 +15,13 @@ The script and notebook refresh the CSV outputs. The formatted Excel workbook is
 ## Classroom method
 
 1. Foreign stocks: regress the weighted stock return on its home currency with an intercept. Always retain beta and pass residuals forward. US stocks skip this step.
-2. Jointly regress the incoming response on all remaining currencies. Remove the coefficient with the smallest absolute t-statistic when its absolute t-statistic is at most 2, then refit against the same incoming response. Continue until all remaining coefficients have absolute t-statistics greater than 2 or all factors are removed. US stocks start with all six currencies.
+2. Test only AUD/USD against the incoming response. Retain its beta only when the absolute t-statistic is greater than 2; otherwise pass the response through unchanged. Do not test other secondary currencies. Skip AUD if it is already the home-currency prior.
 3. Regress the resulting response on SPY; always retain beta and residuals.
-4. Regress those residuals on the primary sector residual factor, always retaining beta. Apply the same backward-elimination procedure to all ten remaining sector residual factors.
+4. Regress those residuals on the primary sector residual factor, always retaining beta. Test each remaining sector individually against the current residuals. Keep the factor with the largest absolute t-statistic only if |t| > 2, pass its residuals forward, and repeat with the unselected sectors. Stop when no remaining sector passes. Retained betas are not jointly refitted; there is no count cap.
 5. Calculate the final residual covariance matrix on dates shared by every stock. Run centered, unstandardized covariance PCA to obtain all eigenvalues, eigenvectors, and scores.
-6. Assemble applied betas, stage and overall fit statistics, both covariance matrices, PCA results, residual histories, and the elimination audit in Excel.
+6. Assemble applied betas, stage and overall fit statistics, both covariance matrices, PCA results, residual histories, and the selection audit in Excel.
 
-Step 4 interprets the primary-sector prior as a mandatory univariate first fit, analogous to the home-currency prior. It is not forced into the later joint fit. The board's exact-equality case at a t-statistic of +/-2 is ambiguous; this implementation retains only strict absolute t-statistics greater than 2. Empty candidate blocks pass their incoming response through unchanged.
+Step 4 interprets the primary-sector prior as a mandatory univariate first fit, analogous to the home-currency prior. Its coefficient stays fixed during subsequent one-factor fits. The board's exact-equality case at a t-statistic of +/-2 is ambiguous; this implementation retains only strict absolute t-statistics greater than 2. Empty candidate blocks pass their incoming response through unchanged.
 
 ## Source and scope
 
@@ -35,12 +35,12 @@ Each stock uses a fixed complete-case sample across every stage. Missing pre-lis
 
 The workbook's main views are Summary, Betas, Stage risk, Factor covariance, Residual covariance, and PCA. Supporting sheets contain fit diagnostics, eigenvectors, scores, coefficients, the complete selection log, all stage residual histories, common-sample data, source returns, company assignments, and method notes. CSV outputs provide the same analytical results for downstream use.
 
-Applied beta is zero for excluded factors. Repeated alpha and R-squared entries within a joint stage fit refer to that same fit and must not be summed once per factor. Total alpha sums one intercept per retained fit. Overall reconstruction R-squared is `1 - sum(final residual^2) / sum((original return - mean(original return))^2)`; it is not adjusted R-squared from a simultaneous multivariate regression.
+Applied beta is zero for excluded factors. Each coefficient row now represents one univariate fit. Its alpha and R-squared belong to that selection step. Total alpha sums one intercept per retained fit. Overall reconstruction R-squared is `1 - sum(final residual^2) / sum((original return - mean(original return))^2)`; it is not adjusted R-squared from a simultaneous multivariate regression.
 
 Cumulative R-squared is reported after home FX, other FX, SPY, the primary sector, and other sectors. Each value is measured against the same original stock-return variance: `1 - sum((stage response - mean(stage response))^2) / sum((original return - mean(original return))^2)`. Centering makes the original baseline zero and leaves skipped stages unchanged. Retained regressions include an intercept, so their residuals are already centered. On the fixed stock sample this also equals `1 - (stage residual std / original std)^2`. Do not add individual stage R-squared values. The final cumulative value equals the overall reconstruction R-squared, up to numerical precision. Betas columns U:Y show the five checkpoints; Stage risk includes the baseline and all checkpoints in Q:V.
 
 Standard deviations use class-weighted four-week return units and are not annualized. Covariances and PCA eigenvalues use the squared units. Eigenvectors are unit-length directions, not variance-scaled loadings. Scores project centered residuals onto those directions; eigenvector signs are arbitrary and are oriented consistently for reproducibility.
 
-Retained block fits cannot increase residual sample variance relative to their incoming response. Removing regressors *within* backward elimination can increase variance relative to the larger candidate fit. The pipeline checks block-level monotonicity, exact return reconstruction to 1e-10, eigenvector orthonormality, and covariance reconstruction from the eigenpairs.
+Each retained one-factor fit cannot increase residual sample variance relative to its incoming response. The pipeline checks block-level monotonicity, exact return reconstruction to 1e-10, eigenvector orthonormality, and covariance reconstruction from the eigenpairs.
 
 Sequential betas depend on stage order; later fits can reintroduce correlation with earlier factors. OLS on the saved scaled returns differs from conventional weighted least squares. T-statistics are classical OLS statistics. Selection and residual reductions are exploratory and in-sample; no multiple-testing adjustment or out-of-sample validation is applied. Foreign tickers are US-listed USD-priced shares/ADRs; their currency regression measures FX exposure rather than converting local returns into USD.

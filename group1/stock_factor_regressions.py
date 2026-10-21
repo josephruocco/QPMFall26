@@ -1,4 +1,4 @@
-"""Group 1 block regressions, residual covariance, and covariance-based PCA."""
+"""Group 1 sequential regressions, residual covariance, and covariance-based PCA."""
 from pathlib import Path
 import json
 import numpy as np
@@ -63,6 +63,42 @@ def backward_select(y, x, threshold=2.0):
     return None, [], log
 
 
+def secondary_currencies(home):
+    """AUD is the only secondary currency; never fit a home factor twice."""
+    return [] if home == 'AUD/USD' else ['AUD/USD']
+
+
+def forward_residual_select(y, x, threshold=2.0):
+    """Fit the strongest qualifying factor to current residuals, then repeat.
+
+    Each trial is univariate with an intercept. Retained coefficients are
+    fixed at their selection step, not refitted in a joint regression.
+    """
+    remaining, retained, log = sorted(x.columns), [], []
+    response = y.copy()
+    iteration = 0
+    while remaining:
+        iteration += 1
+        models = {factor: fit(response, x[[factor]]) for factor in remaining}
+        stats = {factor: float(model.tvalues[factor]) for factor, model in models.items()}
+        if not all(np.isfinite(t) for t in stats.values()):
+            raise ValueError('Nonfinite t-statistic during forward selection')
+        strongest = max(remaining, key=lambda factor: abs(stats[factor]))
+        accepted = abs(stats[strongest]) > threshold
+        for factor in remaining:
+            model = models[factor]
+            log.append(dict(iteration=iteration, factor=factor,
+                            beta=float(model.params[factor]), t_stat=stats[factor],
+                            retained=accepted and factor == strongest,
+                            r_squared=float(model.rsquared)))
+        if not accepted:
+            break
+        retained.append((strongest, models[strongest]))
+        response = models[strongest].resid.copy()
+        remaining.remove(strongest)
+    return retained, log
+
+
 def run(output_dir=None):
     source = ROOT / 'data/companies_and_staggered_returns.xlsx'
     output = Path(output_dir) if output_dir is not None else ROOT / 'group1/results'
@@ -118,17 +154,18 @@ def run(output_dir=None):
                     r_squared=float(model.rsquared)))
 
         def select_block(columns, stage):
-            model, selected, log = backward_select(y, data[columns])
+            retained, log = forward_residual_select(y, data[columns])
             selection.extend(dict(stagger=stagger, ticker=ticker, stage=stage, **row)
                              for row in log)
-            apply(model, selected, stage)
-            return selected
+            for factor, model in retained:
+                apply(model, [factor], stage)
+            return [factor for factor, _ in retained]
 
         checkpoint('Original')
         if home is not None:
             apply(fit(y, data[[home]]), [home], 'Home FX')
         checkpoint('Home FX')
-        selected_fx = select_block([c for c in currencies if c != home], 'Other FX')
+        selected_fx = select_block(secondary_currencies(home), 'Other FX')
         checkpoint('Other FX')
         apply(fit(y, data[['SPY']]), ['SPY'], 'SPY')
         checkpoint('SPY')
@@ -194,7 +231,7 @@ def run(output_dir=None):
     factors.to_csv(output/'factor_returns.csv', index_label='date')
     returns[companies.ticker].to_csv(output/'stock_returns.csv', index_label='date')
     companies.to_csv(output/'companies.csv', index=False)
-    metadata = dict(method='Home FX, backward FX selection, SPY, primary sector, backward sector selection',
+    metadata = dict(method='Home FX, AUD-only secondary FX, SPY, primary sector, forward residual sector selection',
         stagger=stagger, stocks=len(companies), factors=factor_names, threshold=2.0,
         common_observations=len(common), common_start=str(common.index.min().date()),
         common_end=str(common.index.max().date()), source='data/companies_and_staggered_returns.xlsx',
